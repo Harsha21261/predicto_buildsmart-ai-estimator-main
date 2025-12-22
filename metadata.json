@@ -1,0 +1,9 @@
+{
+  "name": "BuildSmart AI Estimator",
+  "description": "Intelligent construction cost estimator with market-relevant data, feasibility checks, and risk analysis powered by Gemini.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

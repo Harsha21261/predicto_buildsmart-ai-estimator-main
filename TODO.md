@@ -1,0 +1,5 @@
+- [x] Add retry helper function with exponential backoff to geminiService.ts
+- [x] Modify checkProjectFeasibility to use retry logic
+- [x] Modify generateConstructionEstimate to use retry logic
+- [x] Modify sendChatMessage to use retry logic
+- [x] Test the changes to ensure rate limit errors are handled and output is faster
