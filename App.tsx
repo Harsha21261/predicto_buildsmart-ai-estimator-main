@@ -134,6 +134,7 @@ const App: React.FC = () => {
                      result={estimationResult} 
                      location={currentInputs.location}
                      userBudget={currentInputs.budgetLimit}
+                     projectInputs={currentInputs}
                    />
                  ) : (
                    <div className="h-full min-h-[400px] flex flex-col items-center justify-center bg-white rounded-xl border border-dashed border-slate-300 p-8 text-center">

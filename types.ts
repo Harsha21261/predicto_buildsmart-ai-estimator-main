@@ -68,6 +68,26 @@ export interface EstimationResult {
   summary: string;
 }
 
+export interface ScenarioComparison {
+  economy: EstimationResult;
+  standard: EstimationResult;
+  premium: EstimationResult;
+}
+
+export interface EditableAssumptions {
+  materialCostMultiplier: number; // 0.8 = 20% reduction, 1.2 = 20% increase
+  laborRateMultiplier: number;
+  equipmentCostMultiplier: number;
+  contingencyPercentage: number;
+}
+
+export interface ReportData {
+  projectInputs: ProjectInputs;
+  estimation: EstimationResult;
+  assumptions: EditableAssumptions;
+  generatedAt: Date;
+}
+
 export interface FeasibilityResult {
   isValid: boolean;
   budgetVerdict: BudgetVerdict;

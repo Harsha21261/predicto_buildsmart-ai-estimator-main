@@ -1,26 +1,90 @@
-import React, { useMemo } from 'react';
-import { EstimationResult, ImpactLevel } from '../types';
+import React, { useMemo, useState } from 'react';
+import { EstimationResult, ImpactLevel, ProjectInputs, EditableAssumptions } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, XAxis, YAxis, Bar, CartesianGrid } from 'recharts';
-import { TrendingUp, AlertOctagon, Lightbulb, MapPin, Wallet, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, AlertOctagon, Lightbulb, MapPin, Wallet, CheckCircle2, Download, BarChart3, Settings } from 'lucide-react';
+import { generatePDFReport, generateScenarioComparison } from '../services/reportService';
+import ScenarioComparisonTable from './ScenarioComparison';
+import EditableAssumptionsPanel from './EditableAssumptions';
 
 interface Props {
   result: EstimationResult;
   location: string;
-  userBudget: number; // passed from parent to compare
+  userBudget: number;
+  projectInputs: ProjectInputs;
 }
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1'];
 
-const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget }) => {
+const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, projectInputs }) => {
+  const [showScenarioComparison, setShowScenarioComparison] = useState(false);
+  const [showEditableAssumptions, setShowEditableAssumptions] = useState(false);
+  const [scenarioComparison, setScenarioComparison] = useState<any>(null);
+  const [currentEstimation, setCurrentEstimation] = useState<EstimationResult>(result);
+  const [currentAssumptions, setCurrentAssumptions] = useState<EditableAssumptions>({
+    materialCostMultiplier: 1.0,
+    laborRateMultiplier: 1.0,
+    equipmentCostMultiplier: 1.0,
+    contingencyPercentage: 10
+  });
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   // Safe access to arrays and numbers
-  const risks = result.risks || [];
-  const breakdown = result.breakdown || [];
-  const cashflow = result.cashflow || [];
-  const tips = result.efficiencyTips || [];
+  const risks = currentEstimation.risks || [];
+  const breakdown = currentEstimation.breakdown || [];
+  const cashflow = currentEstimation.cashflow || [];
+  const tips = currentEstimation.efficiencyTips || [];
   
-  const estimatedCost = result.totalEstimatedCost || 0;
+  const estimatedCost = currentEstimation.totalEstimatedCost || 0;
   const budgetLimit = userBudget || 0;
-  const currency = result.currencySymbol || '$';
+  const currency = currentEstimation.currencySymbol || '$';
+
+  // Handler functions for new features
+  const handleDownloadPDF = async () => {
+    setIsGeneratingPDF(true);
+    try {
+      const reportData = {
+        projectInputs,
+        estimation: currentEstimation,
+        assumptions: currentAssumptions,
+        generatedAt: new Date()
+      };
+      await generatePDFReport(reportData);
+    } catch (error) {
+      console.error('PDF generation failed:', error);
+      alert('Failed to generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  const handleShowScenarioComparison = async () => {
+    if (!scenarioComparison) {
+      setIsLoadingScenarios(true);
+      try {
+        const comparison = await generateScenarioComparison(projectInputs, currentEstimation);
+        setScenarioComparison(comparison);
+      } catch (error) {
+        console.error('Scenario comparison failed:', error);
+        alert('Failed to generate scenario comparison. Please try again.');
+        setIsLoadingScenarios(false);
+        return;
+      }
+      setIsLoadingScenarios(false);
+    }
+    setShowScenarioComparison(!showScenarioComparison);
+  };
+
+  const handleSelectScenario = (scenario: 'economy' | 'standard' | 'premium') => {
+    if (scenarioComparison) {
+      setCurrentEstimation(scenarioComparison[scenario]);
+      setShowScenarioComparison(false);
+    }
+  };
+
+  const handleAssumptionsChange = (assumptions: EditableAssumptions, adjustedEstimation: EstimationResult) => {
+    setCurrentAssumptions(assumptions);
+    setCurrentEstimation(adjustedEstimation);
+  };
 
   // Memoized calculations for better performance
   const budgetAnalysis = useMemo(() => {
@@ -30,15 +94,48 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget }) => 
   }, [budgetLimit, estimatedCost]);
 
   const confidenceColorClasses = useMemo(() => {
-    const score = result.confidenceScore || 0;
+    const score = currentEstimation.confidenceScore || 0;
     return {
       text: score > 75 ? 'text-green-600' : score > 50 ? 'text-yellow-600' : 'text-red-600',
       bg: score > 75 ? 'bg-green-500' : score > 50 ? 'bg-yellow-500' : 'bg-red-500'
     };
-  }, [result.confidenceScore]);
+  }, [currentEstimation.confidenceScore]);
   
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      
+      {/* Action Buttons */}
+      <div className="flex flex-wrap gap-4 justify-end">
+        <button
+          onClick={handleDownloadPDF}
+          disabled={isGeneratingPDF}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          {isGeneratingPDF ? 'Generating...' : 'Download Report (PDF)'}
+        </button>
+        
+        <button
+          onClick={handleShowScenarioComparison}
+          disabled={isLoadingScenarios}
+          className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
+        >
+          <BarChart3 className="w-4 h-4" />
+          {isLoadingScenarios ? 'Loading...' : 'Scenario Comparison'}
+        </button>
+        
+        <button
+          onClick={() => setShowEditableAssumptions(!showEditableAssumptions)}
+          className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-lg transition-colors ${
+            showEditableAssumptions 
+              ? 'bg-orange-600 hover:bg-orange-700 text-white' 
+              : 'bg-orange-100 hover:bg-orange-200 text-orange-700'
+          }`}
+        >
+          <Settings className="w-4 h-4" />
+          Edit Assumptions
+        </button>
+      </div>
       
       {/* --- Top Stats Section: Clean & Explicit --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -90,7 +187,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget }) => 
             <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">AI Confidence Score</p>
             <div className="flex items-end gap-2 mt-2">
               <h2 className={`text-3xl font-extrabold ${confidenceColorClasses.text}`}>
-                {result.confidenceScore || 0}%
+                {currentEstimation.confidenceScore || 0}%
               </h2>
               <span className="text-sm text-slate-400 mb-1 font-medium">accuracy probability</span>
             </div>
@@ -99,10 +196,10 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget }) => 
              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
                <div 
                  className={`h-full transition-all duration-1000 ${confidenceColorClasses.bg}`} 
-                 style={{ width: `${result.confidenceScore || 0}%` }}
+                 style={{ width: `${currentEstimation.confidenceScore || 0}%` }}
                />
              </div>
-             <p className="text-xs text-slate-400 mt-2 truncate" title={result.confidenceReason || 'No reason provided'}>{result.confidenceReason || 'No reason provided'}</p>
+             <p className="text-xs text-slate-400 mt-2 truncate" title={currentEstimation.confidenceReason || 'No reason provided'}>{currentEstimation.confidenceReason || 'No reason provided'}</p>
           </div>
         </div>
 
@@ -254,6 +351,22 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget }) => 
           </ul>
         </div>
       </div>
+
+      {/* Scenario Comparison */}
+      {showScenarioComparison && scenarioComparison && (
+        <ScenarioComparisonTable 
+          comparison={scenarioComparison} 
+          onSelectScenario={handleSelectScenario}
+        />
+      )}
+
+      {/* Editable Assumptions */}
+      {showEditableAssumptions && (
+        <EditableAssumptionsPanel 
+          baseEstimation={result}
+          onAssumptionsChange={handleAssumptionsChange}
+        />
+      )}
     </div>
   );
 };
