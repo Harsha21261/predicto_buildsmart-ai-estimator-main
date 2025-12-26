@@ -11,13 +11,11 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
     type: ProjectType.RESIDENTIAL,
     quality: QualityLevel.STANDARD,
     location: '',
-    sizeSqFt: 1000,
-    budgetLimit: 3500000, // Default to 35 Lakhs for Mumbai
-    timelineMonths: 6,
-    manpower: 5
+    sizeSqFt: 0,
+    budgetLimit: 0, 
+    timelineMonths: 0,
+    manpower: 0
   });
-
-
 
   const numericFields = ['sizeSqFt', 'budgetLimit', 'timelineMonths', 'manpower'];
   
@@ -35,8 +33,6 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
     e.preventDefault();
     onEstimate(inputs);
   };
-
-
 
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-lg border border-slate-100">
@@ -71,16 +67,17 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
         </div>
 
         <div className="md:col-span-2">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Location (City, State/Country)</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
           <input 
             type="text" 
             name="location" 
             value={inputs.location} 
             onChange={handleChange}
-            placeholder="e.g., Mumbai, India"
+            placeholder="Enter city name (e.g., Mumbai, New York, London, Tokyo)"
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           />
-          <p className="text-xs text-slate-500 mt-1">AI fetches local market rates for this location.</p>
+          <p className="text-xs text-slate-500 mt-1">AI will analyze market rates for any city worldwide with local currency.</p>
         </div>
 
         <div>

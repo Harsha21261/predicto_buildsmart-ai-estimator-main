@@ -42,6 +42,7 @@ export interface CostItem {
   category: string;
   cost: number;
   description: string;
+  details?: string[];
 }
 
 export interface CashFlowMonth {
@@ -86,6 +87,7 @@ export interface ReportData {
   estimation: EstimationResult;
   assumptions: EditableAssumptions;
   generatedAt: Date;
+  scenarioComparison?: ScenarioComparison;
 }
 
 export interface FeasibilityResult {

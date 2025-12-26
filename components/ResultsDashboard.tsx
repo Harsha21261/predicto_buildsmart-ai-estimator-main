@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { EstimationResult, ImpactLevel, ProjectInputs, EditableAssumptions } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, XAxis, YAxis, Bar, CartesianGrid } from 'recharts';
 import { TrendingUp, AlertOctagon, Lightbulb, MapPin, Wallet, CheckCircle2, Download, BarChart3, Settings } from 'lucide-react';
-import { generatePDFReport, generateScenarioComparison } from '../services/reportService';
+import { exportReportData, generateScenarioComparison, generatePDF } from '../services/reportService';
 import ScenarioComparisonTable from './ScenarioComparison';
 import EditableAssumptionsPanel from './EditableAssumptions';
 
@@ -26,7 +26,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
     equipmentCostMultiplier: 1.0,
     contingencyPercentage: 10
   });
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [isLoadingScenarios, setIsLoadingScenarios] = useState(false);
   // Safe access to arrays and numbers
   const risks = currentEstimation.risks || [];
@@ -39,21 +39,23 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
   const currency = currentEstimation.currencySymbol || '$';
 
   // Handler functions for new features
-  const handleDownloadPDF = async () => {
-    setIsGeneratingPDF(true);
+  const handleExportReport = async () => {
+    setIsExporting(true);
     try {
-      const reportData = {
+      console.log('Starting report export...');
+      const reportInput = {
         projectInputs,
         estimation: currentEstimation,
         assumptions: currentAssumptions,
-        generatedAt: new Date()
+        generatedAt: new Date(),
+        scenarioComparison: scenarioComparison || undefined
       };
-      await generatePDFReport(reportData);
+      await generatePDF(reportInput);
     } catch (error) {
-      console.error('PDF generation failed:', error);
-      alert('Failed to generate PDF. Please try again.');
+      console.error('Report export failed:', error);
+      alert(`Failed to export report: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
-      setIsGeneratingPDF(false);
+      setIsExporting(false);
     }
   };
 
@@ -61,7 +63,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
     if (!scenarioComparison) {
       setIsLoadingScenarios(true);
       try {
-        const comparison = await generateScenarioComparison(projectInputs, currentEstimation);
+        const comparison = await generateScenarioComparison(projectInputs);
         setScenarioComparison(comparison);
       } catch (error) {
         console.error('Scenario comparison failed:', error);
@@ -107,12 +109,12 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4 justify-end">
         <button
-          onClick={handleDownloadPDF}
-          disabled={isGeneratingPDF}
+          onClick={handleExportReport}
+          disabled={isExporting}
           className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold px-4 py-2 rounded-lg transition-colors"
         >
           <Download className="w-4 h-4" />
-          {isGeneratingPDF ? 'Generating...' : 'Download Report (PDF)'}
+          {isExporting ? 'Exporting...' : 'Export Report'}
         </button>
         
         <button
@@ -205,6 +207,14 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
 
       </div>
 
+      {/* Scenario Comparison - Moved before charts */}
+      {showScenarioComparison && scenarioComparison && (
+        <ScenarioComparisonTable
+          comparison={scenarioComparison}
+          onSelectScenario={handleSelectScenario}
+        />
+      )}
+
       {/* --- Charts Section --- */}
       <div className="space-y-8">
         
@@ -256,6 +266,16 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
                       <span className="font-bold text-lg text-slate-900">{currency} {item.cost.toLocaleString()}</span>
                     </div>
                     <p className="text-sm text-slate-600 ml-7 leading-relaxed">{item.description}</p>
+                    {item.details && item.details.length > 0 && (
+                      <div className="mt-3 ml-7 space-y-1">
+                        {item.details.slice(0, 3).map((detail, detailIndex) => (
+                          <p key={detailIndex} className="text-xs text-slate-500 leading-relaxed">• {detail}</p>
+                        ))}
+                        {item.details.length > 3 && (
+                          <p className="text-xs text-slate-400 italic">+{item.details.length - 3} more details...</p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -351,14 +371,6 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
           </ul>
         </div>
       </div>
-
-      {/* Scenario Comparison */}
-      {showScenarioComparison && scenarioComparison && (
-        <ScenarioComparisonTable 
-          comparison={scenarioComparison} 
-          onSelectScenario={handleSelectScenario}
-        />
-      )}
 
       {/* Editable Assumptions */}
       {showEditableAssumptions && (

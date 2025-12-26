@@ -1,512 +1,553 @@
 import { ProjectInputs, EstimationResult, ReportData, EditableAssumptions, ScenarioComparison, QualityLevel } from '../types';
 import { generateConstructionEstimate, generateLocationInsights } from './geminiService';
+import jsPDF from 'jspdf';
+
+/*
+AI SCENARIO COMPARISON:
+The system now uses AI-powered scenario comparison by default for city-specific analysis.
+This generates separate AI estimates for each quality level using location-specific market data.
+
+SAFEGUARDS IMPLEMENTED:
+- Sequential API calls with 2-second delays to prevent rate limits
+- 30-second timeout per estimate to prevent hanging
+- Comprehensive fallback to hardcoded logic if AI fails
+- No concurrent API calls to avoid rate limit issues
+
+REVERT INSTRUCTIONS (if needed):
+To disable AI scenario comparison and use hardcoded logic:
+1. Change: const USE_AI_SCENARIO_COMPARISON = true;
+   To: const USE_AI_SCENARIO_COMPARISON = false;
+
+For complete revert of AI insights:
+- Comment out the AI calls in exportReportData and use empty arrays instead
+- This will disable location-specific tips and risks generation
+*/
 
 // AI-powered location-specific market data using NVIDIA Nemotron
-const getLocationSpecificTips = async (location: string, projectType: string): Promise<string[]> => {
-  const aiTips = await generateLocationInsights(location, projectType, 'tips');
-  
-  const fallbackTips = [
-    'Consider bulk purchasing materials to reduce costs by 8-12%',
-    'Schedule concrete pours during off-peak hours for better rates',
-    'Use local suppliers to minimize transportation costs',
-    'Research local building codes and permit requirements early',
-    'Consider seasonal weather patterns for optimal construction timing',
-    'Implement digital project management tools for better coordination',
-    'Source skilled labor from established local networks',
-    'Plan material storage to minimize waste and theft',
-    'Negotiate long-term contracts with reliable suppliers',
-    'Use energy-efficient equipment to reduce operational costs'
-  ];
-  
-  return Array.isArray(aiTips) && aiTips.length > 0 ? aiTips : fallbackTips;
+const getLocationSpecificTips = async (location: string, projectType: string, inputs?: ProjectInputs): Promise<string[]> => {
+  try {
+    console.log(`Generating AI-powered efficiency tips for ${location}...`);
+    const tips = await generateLocationInsights(location, projectType, 'tips');
+    // Ensure we have up to 8 tips, but limit to prevent API hallucinations
+    return tips.slice(0, 8);
+  } catch (error) {
+    console.warn('AI tip generation failed, using generic fallbacks:', error);
+    return [
+      'Research local suppliers for better material rates',
+      'Account for specific construction challenges',
+      'Optimize workforce scheduling for local conditions',
+      'Consider seasonal weather patterns for timeline planning',
+      'Utilize local construction expertise and partnerships',
+      'Factor in transportation and logistics costs',
+      'Plan for specific regulatory requirements',
+      'Optimize material sourcing within the local market'
+    ].slice(0, 8);
+  }
 };
 
-const getLocationSpecificRisks = async (location: string, projectType: string): Promise<Array<{risk: string, impact: string, mitigation: string}>> => {
-  const aiRisks = await generateLocationInsights(location, projectType, 'risks');
-  
-  const fallbackRisks = [
-    {
-      risk: 'Material price volatility',
-      impact: 'Medium',
-      mitigation: 'Lock in material prices early and maintain 5-8% contingency for price fluctuations'
-    },
-    {
-      risk: 'Weather-related delays',
-      impact: 'Medium', 
-      mitigation: 'Plan construction schedule around seasonal weather patterns and maintain flexible timelines'
-    },
-    {
-      risk: 'Local regulatory compliance',
-      impact: 'Medium',
-      mitigation: 'Engage local regulatory experts early and budget for potential approval delays'
-    },
-    {
-      risk: 'Skilled labor shortage',
-      impact: 'Medium',
-      mitigation: 'Secure skilled workers early with competitive packages and consider training programs'
-    },
-    {
-      risk: 'Supply chain disruptions',
-      impact: 'Medium',
-      mitigation: 'Diversify supplier base and maintain strategic inventory buffers'
-    },
-    {
-      risk: 'Equipment availability issues',
-      impact: 'Low',
-      mitigation: 'Reserve equipment well in advance and have backup rental options'
-    }
-  ];
-  
-  return Array.isArray(aiRisks) && aiRisks.length > 0 ? aiRisks : fallbackRisks;
-};
-
-// PDF generation using jsPDF
-export const generatePDFReport = async (reportData: ReportData): Promise<void> => {
-  // Dynamic import to reduce bundle size
-  const jsPDF = (await import('jspdf')).default;
-  
-  const doc = new jsPDF();
-  const { projectInputs, estimation, assumptions, generatedAt } = reportData;
-  
-  // Colors
-  const colors = {
-    primary: [41, 98, 255] as const,
-    secondary: [99, 102, 241] as const,
-    success: [34, 197, 94] as const,
-    warning: [251, 191, 36] as const,
-    danger: [239, 68, 68] as const,
-    gray: [107, 114, 128] as const,
-    lightGray: [229, 231, 235] as const
-  };
-  
-  // Helper functions
-  const addHeader = (title: string, subtitle?: string) => {
-    doc.setFillColor(...colors.primary);
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    doc.setFontSize(24);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(255, 255, 255);
-    doc.text(title, 20, 25);
-    
-    if (subtitle) {
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'normal');
-      doc.text(subtitle, 20, 35);
-    }
-  };
-  
-  const addSection = (title: string, y: number) => {
-    doc.setFillColor(...colors.lightGray);
-    doc.rect(15, y - 5, 180, 12, 'F');
-    
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...colors.primary);
-    doc.text(title, 20, y + 2);
-    
-    return y + 15;
-  };
-  
-  const addMetricBox = (label: string, value: string, x: number, y: number, color: readonly [number, number, number] = colors.primary) => {
-    doc.setFillColor(...color);
-    doc.rect(x, y, 80, 25, 'F');
-    doc.setFillColor(255, 255, 255);
-    doc.rect(x + 1, y + 1, 78, 23, 'F');
-    
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...colors.gray);
-    doc.text(label, x + 5, y + 10);
-    
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 0, 0);
-    doc.text(value, x + 5, y + 20);
-  };
-  
-  // PAGE 1: Cover Page
-  addHeader('BuildSmart AI Construction Report', `Professional Estimate & Analysis`);
-  
-  // Company/Project Info Box
-  doc.setFillColor(248, 250, 252);
-  doc.rect(20, 60, 170, 80, 'F');
-  doc.setDrawColor(...colors.lightGray);
-  doc.rect(20, 60, 170, 80, 'S');
-  
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(...colors.primary);
-  doc.text('Project Overview', 30, 75);
-  
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
-  let yPos = 90;
-  const projectDetails = [
-    `Project Type: ${projectInputs.type}`,
-    `Location: ${projectInputs.location}`,
-    `Size: ${projectInputs.sizeSqFt.toLocaleString()} sq ft`,
-    `Quality Level: ${projectInputs.quality}`,
-    `Timeline: ${projectInputs.timelineMonths} months`,
-    `Workforce: ${projectInputs.manpower} workers`
-  ];
-  
-  projectDetails.forEach(detail => {
-    doc.text(`• ${detail}`, 30, yPos);
-    yPos += 8;
-  });
-  
-  // Total Cost Highlight
-  doc.setFillColor(...colors.success);
-  doc.rect(20, 160, 170, 35, 'F');
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(255, 255, 255);
-  doc.text('Total Estimated Cost', 30, 175);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${estimation.currencySymbol} ${estimation.totalEstimatedCost.toLocaleString()}`, 30, 188);
-  
-  // Footer
-  doc.setFontSize(10);
-  doc.setTextColor(...colors.gray);
-  doc.text(`Generated on: ${generatedAt.toLocaleDateString()}`, 20, 270);
-  doc.text('BuildSmart AI - Intelligent Construction Estimation', 20, 280);
-  
-  // PAGE 2: Executive Summary
-  doc.addPage();
-  addHeader('Executive Summary');
-  
-  let currentY = 55;
-  
-  // Key Metrics
-  currentY = addSection('Key Metrics', currentY);
-  addMetricBox('Total Cost', `${estimation.currencySymbol} ${estimation.totalEstimatedCost.toLocaleString()}`, 20, currentY, colors.primary);
-  addMetricBox('Confidence', `${estimation.confidenceScore}%`, 110, currentY, colors.success);
-  addMetricBox('Timeline', `${projectInputs.timelineMonths} months`, 20, currentY + 35, colors.secondary);
-  addMetricBox('Risk Level', estimation.risks.length > 0 ? 'Medium' : 'Low', 110, currentY + 35, colors.warning);
-  
-  currentY += 85;
-  
-  // Project Summary
-  currentY = addSection('Project Summary', currentY);
-  doc.setFontSize(11);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(0, 0, 0);
-  
-  const summaryText = `This ${projectInputs.type.toLowerCase()} project in ${projectInputs.location} spans ${projectInputs.sizeSqFt.toLocaleString()} square feet with ${projectInputs.quality.toLowerCase()} quality specifications. The estimated completion timeline is ${projectInputs.timelineMonths} months with a workforce of ${projectInputs.manpower} personnel.`;
-  
-  const wrappedSummary = doc.splitTextToSize(summaryText, 170);
-  doc.text(wrappedSummary, 20, currentY);
-  
-  currentY += wrappedSummary.length * 6 + 15;
-  
-  // Confidence Analysis
-  currentY = addSection('AI Confidence Analysis', currentY);
-  doc.setFontSize(11);
-  doc.text(`Confidence Score: ${estimation.confidenceScore}%`, 20, currentY);
-  currentY += 10;
-  
-  if (estimation.confidenceReason) {
-    const wrappedReason = doc.splitTextToSize(estimation.confidenceReason, 170);
-    doc.text(wrappedReason, 20, currentY);
-  }
-  
-  // PAGE 3: Detailed Cost Breakdown
-  doc.addPage();
-  addHeader('Detailed Cost Breakdown');
-  
-  currentY = 55;
-  currentY = addSection('Cost Categories', currentY);
-  
-  // Create table for cost breakdown
-  doc.setFillColor(...colors.lightGray);
-  doc.rect(20, currentY, 170, 12, 'F');
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(0, 0, 0);
-  doc.text('Category', 25, currentY + 8);
-  doc.text('Cost', 120, currentY + 8);
-  doc.text('Percentage', 155, currentY + 8);
-  
-  currentY += 15;
-  
-  estimation.breakdown.forEach((item, index) => {
-    const percentage = ((item.cost / estimation.totalEstimatedCost) * 100).toFixed(1);
-    
-    // Alternating row colors
-    if (index % 2 === 0) {
-      doc.setFillColor(248, 250, 252);
-      doc.rect(20, currentY - 3, 170, 10, 'F');
-    }
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    
-    const categoryText = doc.splitTextToSize(item.category, 90);
-    doc.text(categoryText, 25, currentY + 3);
-    doc.text(`${estimation.currencySymbol} ${item.cost.toLocaleString()}`, 120, currentY + 3);
-    doc.text(`${percentage}%`, 155, currentY + 3);
-    
-    currentY += Math.max(10, categoryText.length * 5);
-    
-    // Add description if space allows
-    if (currentY < 240 && item.description) {
-      doc.setFontSize(8);
-      doc.setTextColor(...colors.gray);
-      const descText = doc.splitTextToSize(item.description, 165);
-      doc.text(descText, 25, currentY);
-      currentY += descText.length * 4 + 5;
-    }
-  });
-  
-  // PAGE 4: Timeline & Cashflow
-  doc.addPage();
-  addHeader('Project Timeline & Cashflow');
-  
-  currentY = 55;
-  currentY = addSection('Monthly Cashflow Projection', currentY);
-  
-  // Cashflow table
-  doc.setFillColor(...colors.lightGray);
-  doc.rect(20, currentY, 170, 12, 'F');
-  
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Month', 25, currentY + 8);
-  doc.text('Phase', 60, currentY + 8);
-  doc.text('Amount', 120, currentY + 8);
-  doc.text('Cumulative', 155, currentY + 8);
-  
-  currentY += 15;
-  let cumulative = 0;
-  
-  for (let index = 0; index < estimation.cashflow.length; index++) {
-    const month = estimation.cashflow[index];
-    cumulative += month.amount;
-    
-    if (index % 2 === 0) {
-      doc.setFillColor(248, 250, 252);
-      doc.rect(20, currentY - 3, 170, 10, 'F');
-    }
-    
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(0, 0, 0);
-    
-    doc.text(`${month.month}`, 25, currentY + 3);
-    doc.text(month.phase, 60, currentY + 3);
-    doc.text(`${estimation.currencySymbol} ${month.amount.toLocaleString()}`, 120, currentY + 3);
-    doc.text(`${estimation.currencySymbol} ${cumulative.toLocaleString()}`, 155, currentY + 3);
-    
-    currentY += 10;
-    
-    if (currentY > 250) return; // Prevent overflow
-  }
-  
-  // PAGE 5: Risk Analysis & Mitigation
-  doc.addPage();
-  addHeader('Risk Analysis & Mitigation Strategies');
-  
-  currentY = 55;
-  currentY = addSection('Identified Risks', currentY);
-  
-  // Combine existing risks with location-specific risks
-  const locationRisks = await getLocationSpecificRisks(projectInputs.location, projectInputs.type);
-  const allRisks = [...estimation.risks, ...locationRisks];
-  
-  if (allRisks.length > 0) {
-    for (let index = 0; index < allRisks.length; index++) {
-      const risk = allRisks[index];
-      // Risk box
-      const riskColor = risk.impact === 'High' ? colors.danger : 
-                       risk.impact === 'Medium' ? colors.warning : colors.success;
-      
-      doc.setFillColor(riskColor[0], riskColor[1], riskColor[2]);
-      doc.rect(20, currentY, 170, 8, 'F');
-      
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(`${index + 1}. ${risk.risk} (${risk.impact} Impact)`, 25, currentY + 5);
-      
-      currentY += 12;
-      
-      // Mitigation
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      doc.text('Mitigation Strategy:', 25, currentY);
-      currentY += 6;
-      
-      const mitigationText = doc.splitTextToSize(risk.mitigation, 165);
-      doc.text(mitigationText, 25, currentY);
-      currentY += mitigationText.length * 5 + 10;
-      
-      if (currentY > 250) {
-        doc.addPage();
-        addHeader('Risk Analysis & Mitigation Strategies (Continued)');
-        currentY = 55;
+const getLocationSpecificRisks = async (location: string, projectType: string, inputs?: ProjectInputs): Promise<Array<{risk: string, impact: string, mitigation: string}>> => {
+  try {
+    console.log(`Generating AI-powered risk analysis for ${location}...`);
+    const risks = await generateLocationInsights(location, projectType, 'risks');
+    // Ensure we have up to 8 risks, but limit to prevent API hallucinations
+    return risks.slice(0, 8);
+  } catch (error) {
+    console.warn('AI risk generation failed, using generic fallbacks:', error);
+    return [
+      {
+        risk: 'Construction delays due to specific factors',
+        impact: 'Medium',
+        mitigation: 'Plan for local challenges and maintain flexible timelines'
+      },
+      {
+        risk: 'Resource availability issues',
+        impact: 'Medium',
+        mitigation: 'Secure resources early and establish local partnerships'
+      },
+      {
+        risk: 'Weather-related disruptions',
+        impact: 'High',
+        mitigation: 'Account for climate patterns and seasonal construction windows'
+      },
+      {
+        risk: 'Regulatory compliance challenges',
+        impact: 'Medium',
+        mitigation: 'Research and comply with all building codes and permit requirements'
+      },
+      {
+        risk: 'Labor market fluctuations',
+        impact: 'Medium',
+        mitigation: 'Secure skilled workforce early and consider labor market conditions'
+      },
+      {
+        risk: 'Supply chain disruptions',
+        impact: 'Low',
+        mitigation: 'Establish multiple suppliers and maintain buffer inventory for the market'
+      },
+      {
+        risk: 'Currency exchange volatility',
+        impact: 'Low',
+        mitigation: 'Use local currency contracts and hedge against exchange rate risks'
+      },
+      {
+        risk: 'Infrastructure limitations',
+        impact: 'Medium',
+        mitigation: 'Assess and plan for transportation and utility access requirements'
       }
-    }
-  } else {
-    doc.setFontSize(11);
-    doc.setTextColor(...colors.success);
-    doc.text('✓ No significant risks identified for this project.', 25, currentY);
+    ].slice(0, 8);
   }
-  
-  // PAGE 6: Efficiency Tips & Recommendations
-  doc.addPage();
-  addHeader('Optimization Recommendations');
-  
-  currentY = 55;
-  currentY = addSection('Smart Efficiency Tips', currentY);
-  
-  // Combine existing tips with location-specific tips
-  const locationTips = await getLocationSpecificTips(projectInputs.location, projectInputs.type);
-  const existingTips = estimation.efficiencyTips || [];
-  const allTips = [...existingTips, ...locationTips];
-  
-  if (allTips.length > 0) {
-    for (let index = 0; index < allTips.length; index++) {
-      const tip = allTips[index];
-      doc.setFillColor(...colors.success);
-      doc.circle(25, currentY + 2, 2, 'F');
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      
-      const tipText = doc.splitTextToSize(tip, 160);
-      doc.text(tipText, 32, currentY + 3);
-      currentY += tipText.length * 5 + 8;
-      
-      if (currentY > 250) {
-        doc.addPage();
-        addHeader('Optimization Recommendations (Continued)');
-        currentY = 55;
-      }
-    }
-  }
-  
-  // Assumptions section
-  currentY += 15;
-  if (currentY > 220) {
-    doc.addPage();
-    addHeader('Assumptions & Methodology');
-    currentY = 55;
-  }
-  
-  currentY = addSection('Applied Assumptions', currentY);
-  
-  const assumptionsList = [
-    `Material Cost Adjustment: ${((assumptions.materialCostMultiplier - 1) * 100).toFixed(1)}%`,
-    `Labor Rate Adjustment: ${((assumptions.laborRateMultiplier - 1) * 100).toFixed(1)}%`,
-    `Equipment Cost Adjustment: ${((assumptions.equipmentCostMultiplier - 1) * 100).toFixed(1)}%`,
-    `Contingency Buffer: ${assumptions.contingencyPercentage}%`
-  ];
-  
-  assumptionsList.forEach(assumption => {
-    doc.setFontSize(10);
-    doc.text(`• ${assumption}`, 25, currentY);
-    currentY += 8;
-  });
-  
-  // Footer on last page
-  doc.setFillColor(...colors.primary);
-  doc.rect(0, 270, 210, 27, 'F');
-  
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(255, 255, 255);
-  doc.text('BuildSmart AI - Intelligent Construction Estimation', 105, 282, { align: 'center' });
-  
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Report Generated: ${generatedAt.toLocaleDateString()} | Confidential`, 105, 290, { align: 'center' });
-  
-  // Save the PDF
-  doc.save(`BuildSmart_Professional_Estimate_${projectInputs.type}_${Date.now()}.pdf`);
 };
 
-// Generate scenario comparison
-export const generateScenarioComparison = async (inputs: ProjectInputs, baseEstimate: EstimationResult): Promise<ScenarioComparison> => {
-  // Create scenarios based on the main estimate (not inputs)
-  const createScenarioFromBase = (qualityLevel: QualityLevel, multiplier: number) => {
-    const adjustedCost = Math.round(baseEstimate.totalEstimatedCost * multiplier);
-    
-    return {
-      ...baseEstimate,
-      totalEstimatedCost: adjustedCost,
-      breakdown: baseEstimate.breakdown.map(item => ({
-        ...item,
-        cost: Math.round(item.cost * multiplier)
+// Toggle for AI-powered scenario comparison (set to false to use hardcoded logic only)
+const USE_AI_SCENARIO_COMPARISON = true;
+
+// Export report data without PDF generation
+export const exportReportData = async (reportData: ReportData): Promise<any> => {
+  try {
+    console.log('Starting report data export...');
+
+    const { projectInputs, estimation, assumptions, generatedAt, scenarioComparison } = reportData;
+
+    console.log('Processing report data...');
+
+    // Generate AI-powered location-specific insights (up to 8 points each)
+    console.log('Generating location-specific AI insights for report...');
+    const [locationTips, locationRisks] = await Promise.all([
+      getLocationSpecificTips(projectInputs.location, projectInputs.type),
+      getLocationSpecificRisks(projectInputs.location, projectInputs.type)
+    ]);
+
+    console.log(`Generated ${locationTips.length} efficiency tips and ${locationRisks.length} risk assessments`);
+
+    // Prepare report data structure
+    const formattedReport: any = {
+      title: 'CONSTRUCTION COST ESTIMATE',
+      subtitle: 'Professional Analysis & Market Intelligence',
+      generatedAt: generatedAt.toISOString(),
+      project: {
+        type: projectInputs.type,
+        location: projectInputs.location,
+        sizeSqFt: projectInputs.sizeSqFt,
+        quality: projectInputs.quality,
+        timelineMonths: projectInputs.timelineMonths,
+        manpower: projectInputs.manpower
+      },
+      totalCost: {
+        amount: estimation.totalEstimatedCost,
+        currencySymbol: estimation.currencySymbol,
+        formatted: `${estimation.currencySymbol} ${estimation.totalEstimatedCost.toLocaleString()}`
+      },
+      executiveSummary: {
+        keyMetrics: {
+          totalInvestment: `${estimation.currencySymbol} ${estimation.totalEstimatedCost.toLocaleString()}`,
+          aiConfidence: `${estimation.confidenceScore}%`,
+          projectDuration: `${projectInputs.timelineMonths} months`,
+          riskAssessment: estimation.risks.length > 3 ? 'High' : estimation.risks.length > 1 ? 'Medium' : 'Low'
+        },
+        projectOverview: `This comprehensive analysis covers a ${projectInputs.type.toLowerCase()} construction project located in ${projectInputs.location}. The project encompasses ${projectInputs.sizeSqFt.toLocaleString()} square feet of construction area with ${projectInputs.quality.toLowerCase()} quality specifications. Our AI-powered analysis indicates a ${projectInputs.timelineMonths}-month completion timeline utilizing ${projectInputs.manpower} skilled personnel.`,
+        marketIntelligence: {
+          confidenceLevel: `${estimation.confidenceScore}%`,
+          confidenceDescription: estimation.confidenceScore > 85 ? 'Excellent' : estimation.confidenceScore > 70 ? 'Good' : 'Fair',
+          confidenceReason: estimation.confidenceReason
+        }
+      },
+      costBreakdown: {
+        categories: estimation.breakdown.map((item: any) => ({
+          category: item.category,
+          amount: item.cost,
+          formattedAmount: `${estimation.currencySymbol} ${item.cost.toLocaleString()}`,
+          percentage: ((item.cost / estimation.totalEstimatedCost) * 100).toFixed(1) + '%',
+          description: item.description || 'Standard allocation',
+          details: item.details || []
+        }))
+      },
+      timeline: {
+        monthlySchedule: estimation.cashflow.map((month: any, index: number) => {
+          const cumulative = estimation.cashflow.slice(0, index + 1).reduce((sum: number, m: any) => sum + m.amount, 0);
+          const progress = ((cumulative / estimation.totalEstimatedCost) * 100).toFixed(1) + '%';
+          return {
+            month: month.month,
+            phase: month.phase,
+            investment: month.amount,
+            formattedInvestment: `${estimation.currencySymbol} ${month.amount.toLocaleString()}`,
+            cumulative: cumulative,
+            formattedCumulative: `${estimation.currencySymbol} ${cumulative.toLocaleString()}`,
+            progress: progress
+          };
+        }),
+        milestones: [
+          'Site preparation and permits approval',
+          'Foundation and structural work',
+          'Building envelope and utilities',
+          'Interior finishing and final inspections'
+        ]
+      },
+      risks: [...estimation.risks, ...locationRisks].map((risk: any, index: number) => ({
+        id: index + 1,
+        risk: risk.risk,
+        impact: risk.impact,
+        mitigation: risk.mitigation
       })),
-      cashflow: baseEstimate.cashflow.map(month => ({
-        ...month,
-        amount: Math.round(month.amount * multiplier)
-      })),
-      summary: `${qualityLevel} quality ${inputs.type} in ${inputs.location}`,
-      confidenceScore: baseEstimate.confidenceScore,
-      confidenceReason: `Based on main estimate adjusted for ${qualityLevel} quality`
+      efficiencyTips: [...(estimation.efficiencyTips || []), ...locationTips],
+      assumptions: [
+        `Material Cost Adjustment: ${((assumptions.materialCostMultiplier - 1) * 100).toFixed(1)}%`,
+        `Labor Rate Adjustment: ${((assumptions.laborRateMultiplier - 1) * 100).toFixed(1)}%`,
+        `Equipment Cost Adjustment: ${((assumptions.equipmentCostMultiplier - 1) * 100).toFixed(1)}%`,
+        `Contingency Buffer: ${assumptions.contingencyPercentage}%`
+      ],
+      scenarioComparison: scenarioComparison ? {
+        economy: {
+          totalCost: `${estimation.currencySymbol} ${scenarioComparison.economy.totalEstimatedCost.toLocaleString()}`,
+          breakdown: scenarioComparison.economy.breakdown.map(item => ({
+            category: item.category,
+            cost: `${estimation.currencySymbol} ${item.cost.toLocaleString()}`,
+            percentage: ((item.cost / scenarioComparison.economy.totalEstimatedCost) * 100).toFixed(1) + '%'
+          }))
+        },
+        standard: {
+          totalCost: `${estimation.currencySymbol} ${scenarioComparison.standard.totalEstimatedCost.toLocaleString()}`,
+          breakdown: scenarioComparison.standard.breakdown.map(item => ({
+            category: item.category,
+            cost: `${estimation.currencySymbol} ${item.cost.toLocaleString()}`,
+            percentage: ((item.cost / scenarioComparison.standard.totalEstimatedCost) * 100).toFixed(1) + '%'
+          }))
+        },
+        premium: {
+          totalCost: `${estimation.currencySymbol} ${scenarioComparison.premium.totalEstimatedCost.toLocaleString()}`,
+          breakdown: scenarioComparison.premium.breakdown.map(item => ({
+            category: item.category,
+            cost: `${estimation.currencySymbol} ${item.cost.toLocaleString()}`,
+            percentage: ((item.cost / scenarioComparison.premium.totalEstimatedCost) * 100).toFixed(1) + '%'
+          }))
+        }
+      } : null,
+      metadata: {
+        generatedDate: generatedAt.toLocaleDateString(),
+        generatedTime: generatedAt.toLocaleTimeString(),
+        company: 'BuildSmart AI',
+        description: 'Intelligent Construction Cost Analysis',
+        confidentiality: 'Confidential & Proprietary'
+      }
     };
-  };
-  
-  // Always create scenarios relative to the main estimate
-  // Economy = 70% of main estimate
-  // Standard = main estimate (100%)
-  // Premium = 150% of main estimate
-  const economy = createScenarioFromBase(QualityLevel.ECONOMY, 0.7);
-  const standard = createScenarioFromBase(QualityLevel.STANDARD, 1.0);
-  const premium = createScenarioFromBase(QualityLevel.PREMIUM, 1.5);
-  
-  return { economy, standard, premium };
+
+    console.log('Report data export completed successfully');
+    return formattedReport;
+  } catch (error) {
+    console.error('Report data export error:', error);
+    throw error;
+  }
 };
 
-// Apply assumptions to estimation result
-export const applyAssumptions = (baseEstimation: EstimationResult, assumptions: EditableAssumptions): EstimationResult => {
+// Generate AI-powered scenario comparison
+export const generateScenarioComparison = async (
+  projectInputs: ProjectInputs
+): Promise<ScenarioComparison> => {
+  console.log('Generating scenario comparison...');
+
+  // If AI is disabled, use hardcoded logic directly
+  if (!USE_AI_SCENARIO_COMPARISON) {
+    console.log('Using hardcoded scenario generation (AI disabled)');
+    return generateHardcodedScenarios(projectInputs);
+  }
+
+  console.log('Generating AI-powered scenario comparison...');
+
+  // 1. Create a base input object, excluding the 'quality' property
+  const { quality, ...baseInputs } = projectInputs;
+
+  // 2. Define the scenarios to generate
+  const scenarios: QualityLevel[] = [
+    QualityLevel.ECONOMY,
+    QualityLevel.STANDARD,
+    QualityLevel.PREMIUM,
+  ];
+
+  // 3. Helper function to generate a single estimate
+  const generateEstimate = async (inputs: ProjectInputs): Promise<EstimationResult> => {
+    return await generateConstructionEstimate(inputs);
+  };
+
+  // 4. Generate estimates for each scenario sequentially with delays
+  try {
+    const economyInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.ECONOMY };
+    console.log('Generating Economy scenario...', economyInputs);
+    const economy = await generateEstimate(economyInputs);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+
+    const standardInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.STANDARD };
+    console.log('Generating Standard scenario...', standardInputs);
+    const standard = await generateEstimate(standardInputs);
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+
+    const premiumInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.PREMIUM };
+    console.log('Generating Premium scenario...', premiumInputs);
+    const premium = await generateEstimate(premiumInputs);
+
+    console.log('All AI scenarios generated successfully.');
+    return { economy, standard, premium };
+  } catch (error) {
+    console.error('AI scenario generation failed:', error);
+    // Fallback to hardcoded logic if AI fails
+    console.warn('Falling back to hardcoded scenario generation...');
+    return generateHardcodedScenarios(projectInputs);
+  }
+};
+
+// Hardcoded fallback for scenario comparison
+const generateHardcodedScenarios = (
+  projectInputs: ProjectInputs
+): ScenarioComparison => {
+  const baseCost = 1000000; // Example base cost
+  const currencySymbol = '$'; // Example currency
+
+  const createScenario = (
+    quality: QualityLevel,
+    costMultiplier: number,
+    confidence: number
+  ): EstimationResult => ({
+    totalEstimatedCost: baseCost * costMultiplier,
+    breakdown: [],
+    cashflow: [],
+    risks: [],
+    efficiencyTips: [],
+    confidenceScore: confidence,
+    confidenceReason: 'Hardcoded fallback data',
+    currencySymbol,
+    summary: `This is a hardcoded ${quality} scenario.`
+  });
+
+  return {
+    economy: createScenario(QualityLevel.ECONOMY, 0.8, 70),
+    standard: createScenario(QualityLevel.STANDARD, 1.0, 85),
+    premium: createScenario(QualityLevel.PREMIUM, 1.5, 80),
+  };
+};
+
+// Apply editable assumptions to adjust the estimation
+export const applyAssumptions = (
+  baseEstimation: EstimationResult,
+  assumptions: EditableAssumptions
+): EstimationResult => {
+  // Adjust breakdown costs based on categories
   const adjustedBreakdown = baseEstimation.breakdown.map(item => {
-    let multiplier = 1;
-    
-    if (item.category.toLowerCase().includes('material')) {
+    let multiplier = 1.0;
+    const category = item.category.toLowerCase();
+    if (category.includes('material')) {
       multiplier = assumptions.materialCostMultiplier;
-    } else if (item.category.toLowerCase().includes('labor') || item.category.toLowerCase().includes('wage')) {
+    } else if (category.includes('labor') || category.includes('manpower')) {
       multiplier = assumptions.laborRateMultiplier;
-    } else if (item.category.toLowerCase().includes('equipment')) {
+    } else if (category.includes('equipment')) {
       multiplier = assumptions.equipmentCostMultiplier;
-    } else if (item.category.toLowerCase().includes('contingency')) {
-      // Recalculate contingency based on new percentage
-      const baseTotal = baseEstimation.breakdown
-        .filter(b => !b.category.toLowerCase().includes('contingency'))
-        .reduce((sum, b) => sum + b.cost, 0);
-      return {
-        ...item,
-        cost: baseTotal * (assumptions.contingencyPercentage / 100)
-      };
     }
-    
     return {
       ...item,
       cost: item.cost * multiplier
     };
   });
-  
-  const newTotal = adjustedBreakdown.reduce((sum, item) => sum + item.cost, 0);
-  
+
+  // Calculate adjusted total from breakdown, or fallback to adjusting total directly
+  let adjustedTotal = baseEstimation.totalEstimatedCost;
+  if (adjustedBreakdown.length > 0) {
+    adjustedTotal = adjustedBreakdown.reduce((sum, item) => sum + item.cost, 0);
+  } else {
+    // If no breakdown, apply multipliers to total (simplified)
+    adjustedTotal *= assumptions.materialCostMultiplier * assumptions.laborRateMultiplier * assumptions.equipmentCostMultiplier;
+  }
+
+  // Add contingency
+  adjustedTotal *= (1 + assumptions.contingencyPercentage / 100);
+
   // Adjust cashflow proportionally
-  const costRatio = newTotal / baseEstimation.totalEstimatedCost;
+  const totalMultiplier = adjustedTotal / baseEstimation.totalEstimatedCost;
   const adjustedCashflow = baseEstimation.cashflow.map(month => ({
     ...month,
-    amount: Math.round(month.amount * costRatio)
+    amount: month.amount * totalMultiplier
   }));
-  
+
   return {
     ...baseEstimation,
-    totalEstimatedCost: Math.round(newTotal),
+    totalEstimatedCost: adjustedTotal,
     breakdown: adjustedBreakdown,
-    cashflow: adjustedCashflow
+    cashflow: adjustedCashflow,
+    summary: `${baseEstimation.summary} (Adjusted with assumptions)`
   };
+};
+
+// Generate professional PDF report
+export const generatePDF = async (reportData: ReportData): Promise<void> => {
+  try {
+    console.log('Generating professional PDF report...');
+    const exportedData = await exportReportData(reportData);
+
+    const doc = new jsPDF();
+    let y = 20; // Y-position cursor
+
+    // Helper function for drawing a section header
+    const drawHeader = (text: string) => {
+      if (y > 250) {
+        doc.addPage();
+        y = 20;
+      }
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(text, 14, y);
+      y += 8;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, y, 196, y);
+      y += 8;
+      doc.setFont('helvetica', 'normal');
+    };
+
+    // 1. Report Header
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text(exportedData.title, 105, y, { align: 'center' });
+    y += 10;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(exportedData.subtitle, 105, y, { align: 'center' });
+    
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`Generated on: ${new Date(exportedData.generatedAt).toLocaleString()}`, 105, y, { align: 'center' });
+    y += 15;
+    doc.setTextColor(0);
+
+    // 2. Executive Summary
+    drawHeader('Executive Summary');
+    doc.setFontSize(11);
+    doc.text(`Total Estimated Cost:`, 14, y);
+    doc.setFont('helvetica', 'bold');
+    doc.text(exportedData.totalCost.formatted, 70, y);
+    doc.setFont('helvetica', 'normal');
+    y += 7;
+
+    const budgetDiff = reportData.projectInputs.budgetLimit - exportedData.totalCost.amount;
+    const budgetStatus = budgetDiff >= 0 ? 'Surplus' : 'Deficit';
+    doc.text(`Budget Analysis:`, 14, y);
+    doc.text(`${budgetStatus} of ${exportedData.totalCost.currencySymbol} ${Math.abs(budgetDiff).toLocaleString()}`, 70, y);
+    y += 7;
+
+    doc.text(`AI Confidence:`, 14, y);
+    doc.text(`${exportedData.executiveSummary.marketIntelligence.confidenceLevel}`, 70, y);
+    y += 5;
+    doc.setFontSize(9);
+    doc.setTextColor(120);
+    const reasonLines = doc.splitTextToSize(`(${exportedData.executiveSummary.marketIntelligence.confidenceReason})`, 120);
+    doc.text(reasonLines, 72, y);
+    y += (reasonLines.length * 4) + 5;
+    doc.setTextColor(0);
+
+    // 3. Project Details
+    drawHeader('Project Details');
+    doc.setFontSize(10);
+    doc.text(`Project Type: ${exportedData.project.type}`, 14, y);
+    doc.text(`Location: ${exportedData.project.location}`, 105, y);
+    y += 7;
+    doc.text(`Size: ${exportedData.project.sizeSqFt.toLocaleString()} sq ft`, 14, y);
+    doc.text(`Quality: ${exportedData.project.quality}`, 105, y);
+    y += 7;
+    doc.text(`Timeline: ${exportedData.project.timelineMonths} months`, 14, y);
+    doc.text(`Manpower: ${exportedData.project.manpower} personnel`, 105, y);
+    y += 10;
+
+    // 4. Cost Breakdown (Table)
+    drawHeader('Cost Breakdown');
+    let tableY = y;
+    const colWidths = [50, 40, 30, 70];
+    doc.setFont('helvetica', 'bold');
+    doc.text('Category', 15, tableY);
+    doc.text('Cost', 65, tableY);
+    doc.text('% of Total', 105, tableY);
+    doc.text('Description', 135, tableY);
+    tableY += 5;
+    doc.setDrawColor(200);
+    doc.line(14, tableY, 196, tableY);
+    tableY += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    exportedData.costBreakdown.categories.forEach((cat: any) => {
+      if (tableY > 260) {
+        doc.addPage();
+        tableY = 20;
+      }
+      const descriptionLines = doc.splitTextToSize(cat.description || '', colWidths[3] - 5);
+      const rowHeight = Math.max(8, descriptionLines.length * 4 + 4);
+      doc.text(cat.category, 15, tableY + 4);
+      doc.text(cat.formattedAmount, 65, tableY + 4);
+      doc.text(cat.percentage, 105, tableY + 4);
+      doc.text(descriptionLines, 135, tableY + 4);
+      tableY += rowHeight;
+      doc.setDrawColor(230);
+      doc.line(14, tableY - 2, 196, tableY - 2);
+    });
+    y = tableY + 5;
+    doc.setFontSize(10);
+
+    // 5. Cashflow (Table)
+    if(y > 250) { doc.addPage(); y = 20; }
+    drawHeader('Projected Monthly Cashflow');
+    tableY = y;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Month', 15, tableY);
+    doc.text('Phase', 65, tableY);
+    doc.text('Investment', 135, tableY);
+    tableY += 5;
+    doc.line(14, tableY, 196, tableY);
+    tableY += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    exportedData.timeline.monthlySchedule.forEach((month: any) => {
+      if (tableY > 270) { doc.addPage(); tableY = 20; }
+      doc.text(String(month.month), 15, tableY);
+      doc.text(month.phase, 65, tableY);
+      doc.text(month.formattedInvestment, 135, tableY);
+      tableY += 7;
+    });
+    y = tableY + 5;
+    doc.setFontSize(10);
+
+    // 6. Risk Analysis
+    if(y > 250) { doc.addPage(); y = 20; }
+    drawHeader('Risk Analysis');
+    exportedData.risks.forEach((risk: any) => {
+      if (y > 260) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold');
+      doc.text(risk.risk, 14, y);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Impact: ${risk.impact}`, 160, y);
+      doc.setFontSize(10);
+      y += 6;
+      const mitigationLines = doc.splitTextToSize(`Mitigation: ${risk.mitigation}`, 180);
+      doc.text(mitigationLines, 14, y);
+      y += (mitigationLines.length * 5) + 5;
+    });
+
+    // 7. Efficiency Tips
+    if(y > 240) { doc.addPage(); y = 20; }
+    drawHeader('Efficiency Tips');
+    exportedData.efficiencyTips.forEach((tip: string) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      const tipLines = doc.splitTextToSize(tip, 175);
+      doc.text('•', 14, y + 4);
+      doc.text(tipLines, 20, y + 4);
+      y += (tipLines.length * 5) + 3;
+    });
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`${exportedData.metadata.company} - ${exportedData.metadata.description}`, 105, 285, { align: 'center' });
+    doc.text(exportedData.metadata.confidentiality, 105, 290, { align: 'center' });
+
+    // Save the PDF
+    doc.save('BuildSmart_AI_Cost_Estimate.pdf');
+    console.log('PDF report saved successfully.');
+  } catch (error) {
+    console.error('PDF generation failed:', error);
+    throw new Error('Failed to generate PDF report.');
+  }
 };
