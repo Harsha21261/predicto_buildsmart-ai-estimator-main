@@ -16,6 +16,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
     timelineMonths: 0,
     manpower: 0
   });
+  const [error, setError] = useState<string | null>(null);
 
   const numericFields = ['sizeSqFt', 'budgetLimit', 'timelineMonths', 'manpower'];
   
@@ -31,6 +32,11 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (Object.values(inputs).some(value => value === '' || value === 0)) {
+      setError('Please fill out all fields.');
+      return;
+    }
+    setError(null);
     onEstimate(inputs);
   };
 
@@ -41,6 +47,12 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
         Project Details
       </h2>
 
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+          <span className="block sm:inline">{error}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Project Type</label>
@@ -49,6 +61,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             value={inputs.type} 
             onChange={handleChange}
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           >
             {Object.values(ProjectType).map(t => <option key={t} value={t}>{t}</option>)}
           </select>
@@ -61,6 +74,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             value={inputs.quality} 
             onChange={handleChange}
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           >
             {Object.values(QualityLevel).map(q => <option key={q} value={q}>{q}</option>)}
           </select>
@@ -90,6 +104,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             min="1"
             placeholder="1000"
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           />
         </div>
 
@@ -103,6 +118,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             min="1"
             placeholder="3500000"
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           />
         </div>
 
@@ -117,6 +133,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             max="60"
             placeholder="6"
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           />
         </div>
 
@@ -131,6 +148,7 @@ const EstimatorForm: React.FC<Props> = ({ onEstimate }) => {
             max="1000"
             placeholder="5"
             className="w-full px-4 py-2 bg-white text-slate-900 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+            required
           />
         </div>
       </div>
