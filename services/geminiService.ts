@@ -44,9 +44,9 @@ class TaskQueue {
 
   private async process() {
     if (this.processing || this.queue.length === 0) return;
-    
+
     this.processing = true;
-    
+
     while (this.queue.length > 0) {
       const task = this.queue.shift()!;
       try {
@@ -57,7 +57,7 @@ class TaskQueue {
         console.error('Task failed:', error);
       }
     }
-    
+
     this.processing = false;
   }
 }
@@ -76,12 +76,12 @@ const safeJsonParse = <T>(text: string, fallback: T): T => {
     const cleaned = cleanJson(text);
     // Additional cleaning for malformed JSON
     let jsonStr = cleaned;
-    
+
     // Fix common JSON issues
     jsonStr = jsonStr.replace(/,\s*}/g, '}'); // Remove trailing commas
     jsonStr = jsonStr.replace(/,\s*]/g, ']'); // Remove trailing commas in arrays
     jsonStr = jsonStr.replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*):/g, '$1"$2":'); // Quote unquoted keys
-    
+
     return JSON.parse(jsonStr) as T;
   } catch (error) {
     console.warn('JSON parse failed, using fallback:', error);
@@ -100,7 +100,7 @@ const queueRequest = async <T>(fn: () => Promise<T>): Promise<T> => {
       console.log(`Waiting ${waitTime}ms to avoid rate limit...`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
-    
+
     lastRequestTime = Date.now();
     return fn();
   });
@@ -141,14 +141,14 @@ const retryWithBackoff = async <T>(
 // Validate and fix cashflow to match user's timeline
 const validateCashflow = (result: EstimationResult, timelineMonths: number): EstimationResult => {
   console.log(`Validating cashflow for ${timelineMonths} months timeline`);
-  
+
   if (!result.cashflow || result.cashflow.length !== timelineMonths) {
     console.log(`Cashflow mismatch: got ${result.cashflow?.length || 0} months, expected ${timelineMonths}`);
-    
+
     // Generate proper cashflow distribution
     const totalCost = result.totalEstimatedCost;
     const newCashflow = [];
-    
+
     // Standard construction phases distribution
     const phaseDistribution = {
       1: { percentage: 0.15, phase: "Site preparation & permits" },
@@ -157,11 +157,11 @@ const validateCashflow = (result: EstimationResult, timelineMonths: number): Est
       4: { percentage: 0.20, phase: "Interior finishing" },
       5: { percentage: 0.10, phase: "Final inspections & handover" }
     };
-    
+
     for (let month = 1; month <= timelineMonths; month++) {
       let percentage: number;
       let phase: string;
-      
+
       if (timelineMonths <= 3) {
         // Short projects: front-loaded
         percentage = month === 1 ? 0.4 : (month === 2 ? 0.35 : 0.25);
@@ -174,28 +174,28 @@ const validateCashflow = (result: EstimationResult, timelineMonths: number): Est
       } else {
         // Long projects: spread evenly with front-loading
         percentage = month <= 2 ? 0.20 : (month <= timelineMonths - 2 ? 0.60 / (timelineMonths - 4) : 0.10);
-        phase = month <= 2 ? "Initial setup & foundation" : 
-               (month <= timelineMonths - 2 ? "Main construction work" : "Finishing & handover");
+        phase = month <= 2 ? "Initial setup & foundation" :
+          (month <= timelineMonths - 2 ? "Main construction work" : "Finishing & handover");
       }
-      
+
       newCashflow.push({
         month,
         amount: Math.round(totalCost * percentage),
         phase
       });
     }
-    
+
     // Ensure total matches (adjust last month if needed)
     const calculatedTotal = newCashflow.reduce((sum, item) => sum + item.amount, 0);
     const difference = totalCost - calculatedTotal;
     if (difference !== 0) {
       newCashflow[newCashflow.length - 1].amount += difference;
     }
-    
+
     console.log(`Generated corrected cashflow for ${timelineMonths} months`);
     return { ...result, cashflow: newCashflow };
   }
-  
+
   console.log(`Cashflow validation passed: ${result.cashflow.length} months`);
   return result;
 };
@@ -207,66 +207,57 @@ export const generateLocationInsights = async (location: string, projectType: st
 
 Project Context:
 - Size: ${inputs.sizeSqFt} sq ft
+- Floors: ${inputs.floors}
 - Quality: ${inputs.quality}
 - Timeline: ${inputs.timelineMonths} months
 - Manpower: ${inputs.manpower} workers
 - Budget: ${inputs.budgetLimit}` : '';
 
     const prompt = insightType === 'tips'
-      ? `You are a construction expert for ${location}. Generate up to 8 specific efficiency tips for ${projectType} construction in ${location}.${contextInfo}
+      ? `You are a construction expert for ${location}. Generate up to 8 highly specific efficiency tips for ${projectType} construction in ${location}.${contextInfo}
+
+CRITICAL: Provide ONLY actionable, location-specific advice.
+- Name specific local suppliers, districts, or resources if applicable.
+- Reference specific local building codes or climate phenomena in ${location}.
+- Avoid generic advice like "Plan ahead" or "Hire skilled labor".
+- Focus on what makes building in ${location} unique.
 
 Consider ${location} specific factors:
-- Local material suppliers and costs
-- Climate and weather patterns
-- Local building codes and regulations
-- Labor market conditions and availability
-- Transportation and logistics
-- Seasonal construction patterns
-- Workforce optimization for ${inputs?.manpower || 'available'} workers
-- Timeline efficiency for ${inputs?.timelineMonths || 'planned'} months
-- Quality standards for ${inputs?.quality || 'standard'} construction
-- Budget optimization within ${inputs?.budgetLimit || 'available'} budget
+- Local material suppliers (mention specific markets/regions in ${location})
+- Specific ${location} weather patterns (monsoons, snow, heat waves)
+- Local building codes and municipal regulations
+- Labor market conditions in ${location}
+- Transportation logistics within ${location}
+- Foundation challenges common in ${location}'s soil
 
 Return JSON format:
 {
   "tips": [
-    "Specific tip 1 for ${location}",
-    "Specific tip 2 for ${location}",
-    "Specific tip 3 for ${location}",
-    "Specific tip 4 for ${location}",
-    "Specific tip 5 for ${location}",
-    "Specific tip 6 for ${location}",
-    "Specific tip 7 for ${location}",
-    "Specific tip 8 for ${location}"
+    "Tip 1...",
+    "Tip 2...",
+    ...
   ]
 }`
       : `You are a construction risk analyst for ${location}. Identify up to 8 specific construction risks for ${projectType} in ${location}.${contextInfo}
 
+CRITICAL: Provide ONLY location-specific risks.
+- Mention specific local weather events (e.g., "Monsson flooding in July", "Winter freeze in Jan").
+- Cite specific local regulatory hurdles or permit bodies.
+- Identify specific supply chain bottlenecks common in not just the country, but the city/region of ${location}.
+- AVOID generic risks like "Safety accidents" or "Budget overruns" unless tied to a local cause.
+
 Consider ${location} specific factors:
-- Local weather and climate risks
-- Regulatory and permit challenges
-- Material supply chain issues
-- Labor availability and costs
-- Infrastructure limitations
-- Economic and market conditions
-- Timeline risks for ${inputs?.timelineMonths || 'planned'} months
-- Workforce management risks with ${inputs?.manpower || 'available'} workers
-- Budget risks within ${inputs?.budgetLimit || 'available'} budget
-- Quality control risks for ${inputs?.quality || 'standard'} construction
-- Environmental and sustainability factors
-- Technology and equipment availability
+- Local weather/climate risks
+- Specific regulatory/permit bodies in ${location}
+- Local labor strikes or shortages
+- Specific material shortages common in ${location}
+- Soil/Ground conditions specific to ${location}
 
 Return JSON format:
 {
   "risks": [
-    {"risk": "Specific risk 1 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 2 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 3 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 4 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 5 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 6 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 7 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"},
-    {"risk": "Specific risk 8 for ${location}", "impact": "High/Medium/Low", "mitigation": "Specific solution for ${location}"}
+    {"risk": "Specific Risk 1", "impact": "High/Medium/Low", "mitigation": "Specific mitigation"},
+    ...
   ]
 }`;
 
@@ -286,7 +277,7 @@ Return JSON format:
 
     const content = (response as any).choices?.[0]?.message?.content || "{}";
     const parsed = safeJsonParse(content, insightType === 'tips' ? { tips: [] } : { risks: [] });
-    
+
     return insightType === 'tips' ? parsed.tips || [] : parsed.risks || [];
   } catch (error) {
     console.warn(`Failed to generate ${insightType} for ${location}:`, error);
@@ -303,11 +294,12 @@ export const generateConstructionEstimate = async (inputs: ProjectInputs): Promi
     console.log('Quality Level:', inputs.quality);
     console.log('Location:', inputs.location);
     console.log('Size (sq ft):', inputs.sizeSqFt);
+    console.log('Floors:', inputs.floors);
     console.log('Timeline (months):', inputs.timelineMonths);
     console.log('Manpower:', inputs.manpower);
     console.log('Budget Limit:', inputs.budgetLimit);
     console.log('=====================');
-    
+
     const requestId = Date.now() + Math.random();
     const prompt = `You are a global construction cost expert with access to real-time market data. Research and generate accurate costs for ${inputs.location} based on current 2024 market conditions:
 
@@ -315,10 +307,15 @@ REQUEST ID: ${requestId} (Ensure unique response)
 PROJECT TYPE: ${inputs.type}
 QUALITY LEVEL: ${inputs.quality}
 SIZE: ${inputs.sizeSqFt} sq ft
+FLOORS: ${inputs.floors}
 TIMELINE: ${inputs.timelineMonths} months
 MANPOWER: ${inputs.manpower} workers
 BUDGET LIMIT: ${inputs.budgetLimit}
 LOCATION: ${inputs.location}
+
+CRITICAL: FAILURE TO COMPILE LOCAL DATA WILL RESULT IN REJECTION.
+- You MUST mention specific local contexts for ${inputs.location} (e.g. specific neighborhoods, local laws, local weather).
+- Do NOT return generic "Estimated based on market rates". You must simulate a real local contractor's quote.
 
 CRITICAL INSTRUCTIONS:
 1. Research current 2024 construction costs specifically for ${inputs.location}
@@ -399,7 +396,7 @@ Return this exact JSON structure:
     return validatedResult;
   } catch (error) {
     console.error("Estimation failed:", error instanceof Error ? error.message : 'Unknown error');
-    
+
     // Return a fallback estimate on failure
     return {
       currencySymbol: '$',
@@ -422,14 +419,14 @@ interface OpenAIMessage {
 }
 
 // 3. Chat
-export const sendChatMessage = async (history: {role: string, parts: {text: string}[]}[], message: string): Promise<string> => {
+export const sendChatMessage = async (history: { role: string, parts: { text: string }[] }[], message: string): Promise<string> => {
   try {
     // Convert Gemini history format to OpenAI format
     const messages: OpenAIMessage[] = history
       .map(h => {
         if (h.role !== 'user' && h.role !== 'model') {
           console.warn(`Invalid role detected in history: ${h.role}`);
-          return null; 
+          return null;
         }
         if (!h.parts || h.parts.length === 0 || !h.parts[0].text) {
           console.warn('Invalid history item, skipping:', h);
@@ -461,11 +458,11 @@ export const sendChatMessage = async (history: {role: string, parts: {text: stri
   } catch (error) {
     console.error('Chat message failed:', error instanceof Error ? error.message : 'Unknown error');
     const isRateLimit = error instanceof Error && (error.message.includes('rate limit') || error.message.includes('429'));
-    
+
     if (isRateLimit) {
       return "I'm currently experiencing high demand. Please use the main estimator tool for AI-generated cost analysis, or try again in a few moments for chat functionality.";
     }
-    
+
     return "I'm having trouble connecting right now. Please check your connection and try again, or use the main estimator tool for detailed project analysis.";
   }
 };

@@ -33,6 +33,7 @@ export interface ProjectInputs {
   quality: QualityLevel;
   location: string; // "City, State"
   sizeSqFt: number;
+  floors: number;
   budgetLimit: number;
   timelineMonths: number;
   manpower: number;

@@ -33,19 +33,19 @@ const getLocationSpecificTips = async (location: string, projectType: string, in
   } catch (error) {
     console.warn('AI tip generation failed, using generic fallbacks:', error);
     return [
-      'Research local suppliers for better material rates',
-      'Account for specific construction challenges',
-      'Optimize workforce scheduling for local conditions',
-      'Consider seasonal weather patterns for timeline planning',
-      'Utilize local construction expertise and partnerships',
-      'Factor in transportation and logistics costs',
-      'Plan for specific regulatory requirements',
-      'Optimize material sourcing within the local market'
+      'Research local suppliers for better material rates (Generic)',
+      'Account for specific construction challenges (Generic)',
+      'Optimize workforce scheduling for local conditions (Generic)',
+      'Consider seasonal weather patterns for timeline planning (Generic)',
+      'Utilize local construction expertise and partnerships (Generic)',
+      'Factor in transportation and logistics costs (Generic)',
+      'Plan for specific regulatory requirements (Generic)',
+      'Optimize material sourcing within the local market (Generic)'
     ].slice(0, 8);
   }
 };
 
-const getLocationSpecificRisks = async (location: string, projectType: string, inputs?: ProjectInputs): Promise<Array<{risk: string, impact: string, mitigation: string}>> => {
+const getLocationSpecificRisks = async (location: string, projectType: string, inputs?: ProjectInputs): Promise<Array<{ risk: string, impact: string, mitigation: string }>> => {
   try {
     console.log(`Generating AI-powered risk analysis for ${location}...`);
     const risks = await generateLocationInsights(location, projectType, 'risks');
@@ -55,42 +55,42 @@ const getLocationSpecificRisks = async (location: string, projectType: string, i
     console.warn('AI risk generation failed, using generic fallbacks:', error);
     return [
       {
-        risk: 'Construction delays due to specific factors',
+        risk: 'Construction delays due to specific factors (Generic)',
         impact: 'Medium',
         mitigation: 'Plan for local challenges and maintain flexible timelines'
       },
       {
-        risk: 'Resource availability issues',
+        risk: 'Resource availability issues (Generic)',
         impact: 'Medium',
         mitigation: 'Secure resources early and establish local partnerships'
       },
       {
-        risk: 'Weather-related disruptions',
+        risk: 'Weather-related disruptions (Generic)',
         impact: 'High',
         mitigation: 'Account for climate patterns and seasonal construction windows'
       },
       {
-        risk: 'Regulatory compliance challenges',
+        risk: 'Regulatory compliance challenges (Generic)',
         impact: 'Medium',
         mitigation: 'Research and comply with all building codes and permit requirements'
       },
       {
-        risk: 'Labor market fluctuations',
+        risk: 'Labor market fluctuations (Generic)',
         impact: 'Medium',
         mitigation: 'Secure skilled workforce early and consider labor market conditions'
       },
       {
-        risk: 'Supply chain disruptions',
+        risk: 'Supply chain disruptions (Generic)',
         impact: 'Low',
         mitigation: 'Establish multiple suppliers and maintain buffer inventory for the market'
       },
       {
-        risk: 'Currency exchange volatility',
+        risk: 'Currency exchange volatility (Generic)',
         impact: 'Low',
         mitigation: 'Use local currency contracts and hedge against exchange rate risks'
       },
       {
-        risk: 'Infrastructure limitations',
+        risk: 'Infrastructure limitations (Generic)',
         impact: 'Medium',
         mitigation: 'Assess and plan for transportation and utility access requirements'
       }
@@ -113,8 +113,8 @@ export const exportReportData = async (reportData: ReportData): Promise<any> => 
     // Generate AI-powered location-specific insights (up to 8 points each)
     console.log('Generating location-specific AI insights for report...');
     const [locationTips, locationRisks] = await Promise.all([
-      getLocationSpecificTips(projectInputs.location, projectInputs.type),
-      getLocationSpecificRisks(projectInputs.location, projectInputs.type)
+      getLocationSpecificTips(projectInputs.location, projectInputs.type, projectInputs),
+      getLocationSpecificRisks(projectInputs.location, projectInputs.type, projectInputs)
     ]);
 
     console.log(`Generated ${locationTips.length} efficiency tips and ${locationRisks.length} risk assessments`);
@@ -240,58 +240,149 @@ export const exportReportData = async (reportData: ReportData): Promise<any> => 
 
 // Generate AI-powered scenario comparison
 export const generateScenarioComparison = async (
-  projectInputs: ProjectInputs
+  projectInputs: ProjectInputs,
+  baseEstimate?: EstimationResult
 ): Promise<ScenarioComparison> => {
-  console.log('Generating scenario comparison...');
-
-  // If AI is disabled, use hardcoded logic directly
-  if (!USE_AI_SCENARIO_COMPARISON) {
-    console.log('Using hardcoded scenario generation (AI disabled)');
-    return generateHardcodedScenarios(projectInputs);
-  }
-
-  console.log('Generating AI-powered scenario comparison...');
-
-  // 1. Create a base input object, excluding the 'quality' property
-  const { quality, ...baseInputs } = projectInputs;
-
-  // 2. Define the scenarios to generate
-  const scenarios: QualityLevel[] = [
-    QualityLevel.ECONOMY,
-    QualityLevel.STANDARD,
-    QualityLevel.PREMIUM,
-  ];
-
-  // 3. Helper function to generate a single estimate
-  const generateEstimate = async (inputs: ProjectInputs): Promise<EstimationResult> => {
-    return await generateConstructionEstimate(inputs);
-  };
-
-  // 4. Generate estimates for each scenario sequentially with delays
   try {
-    const economyInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.ECONOMY };
-    console.log('Generating Economy scenario...', economyInputs);
-    const economy = await generateEstimate(economyInputs);
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+    // 2. Determine the anchor scenario
+    let economy: EstimationResult;
+    let standard: EstimationResult;
+    let premium: EstimationResult;
 
-    const standardInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.STANDARD };
-    console.log('Generating Standard scenario...', standardInputs);
-    const standard = await generateEstimate(standardInputs);
-    await new Promise(resolve => setTimeout(resolve, 2000)); // 2s delay
+    if (baseEstimate) {
+      console.log(`Using provided base estimate as anchor for ${projectInputs.quality}`);
 
-    const premiumInputs: ProjectInputs = { ...baseInputs, quality: QualityLevel.PREMIUM };
-    console.log('Generating Premium scenario...', premiumInputs);
-    const premium = await generateEstimate(premiumInputs);
+      // Use the base estimate EXACTLY for its corresponding quality
+      // And derive the others relative to it
+      if (projectInputs.quality === QualityLevel.ECONOMY) {
+        economy = baseEstimate;
+        // Derive Standard from Economy
+        standard = deriveScenarioFromBase(baseEstimate, QualityLevel.ECONOMY, QualityLevel.STANDARD);
+        // Derive Premium from Economy
+        premium = deriveScenarioFromBase(baseEstimate, QualityLevel.ECONOMY, QualityLevel.PREMIUM);
+      }
+      else if (projectInputs.quality === QualityLevel.PREMIUM) {
+        premium = baseEstimate;
+        standard = deriveScenarioFromBase(baseEstimate, QualityLevel.PREMIUM, QualityLevel.STANDARD);
+        economy = deriveScenarioFromBase(baseEstimate, QualityLevel.PREMIUM, QualityLevel.ECONOMY);
+      }
+      else {
+        // Standard is default
+        standard = baseEstimate;
+        economy = deriveScenarioFromBase(baseEstimate, QualityLevel.STANDARD, QualityLevel.ECONOMY);
+        premium = deriveScenarioFromBase(baseEstimate, QualityLevel.STANDARD, QualityLevel.PREMIUM);
+      }
+    } else {
+      // Fallback: Generate Standard if no base provided
+      console.log('No base estimate provided, generating Standard as anchor...');
+      const standardInputs = { ...projectInputs, quality: QualityLevel.STANDARD };
+      standard = await generateConstructionEstimate(standardInputs);
+      economy = deriveScenarioFromBase(standard, QualityLevel.STANDARD, QualityLevel.ECONOMY);
+      premium = deriveScenarioFromBase(standard, QualityLevel.STANDARD, QualityLevel.PREMIUM);
+    }
 
-    console.log('All AI scenarios generated successfully.');
     return { economy, standard, premium };
+
   } catch (error) {
-    console.error('AI scenario generation failed:', error);
-    // Fallback to hardcoded logic if AI fails
-    console.warn('Falling back to hardcoded scenario generation...');
+    console.error('Scenario comparison generation failed:', error);
     return generateHardcodedScenarios(projectInputs);
   }
 };
+
+// Consolidated Helper: Derive any target scenario from any base scenario
+const deriveScenarioFromBase = (
+  base: EstimationResult,
+  baseQuality: QualityLevel,
+  targetQuality: QualityLevel
+): EstimationResult => {
+  if (baseQuality === targetQuality) return base;
+
+  // Define relative cost factors (Standard = 1.0)
+  const factors = {
+    [QualityLevel.ECONOMY]: 0.75,
+    [QualityLevel.STANDARD]: 1.0,
+    [QualityLevel.PREMIUM]: 1.35
+  };
+
+  // Calculate the conversion ratio directly
+  // This approach is much more consistent than round-tripping through Standard
+  const conversionRatio = factors[targetQuality] / factors[baseQuality];
+
+  // Specific multipliers for breakdown categories to be more realistic
+  const categoryMultipliers = {
+    'material': {
+      [QualityLevel.ECONOMY]: 0.7,
+      [QualityLevel.STANDARD]: 1.0,
+      [QualityLevel.PREMIUM]: 1.5
+    },
+    'labor': {
+      [QualityLevel.ECONOMY]: 0.8,
+      [QualityLevel.STANDARD]: 1.0,
+      [QualityLevel.PREMIUM]: 1.3
+    },
+    'equipment': {
+      [QualityLevel.ECONOMY]: 0.9,
+      [QualityLevel.STANDARD]: 1.0,
+      [QualityLevel.PREMIUM]: 1.1
+    },
+    'default': {
+      [QualityLevel.ECONOMY]: 0.75,
+      [QualityLevel.STANDARD]: 1.0,
+      [QualityLevel.PREMIUM]: 1.35
+    }
+  };
+
+  const getCategoryRatio = (category: string) => {
+    const cat = category.toLowerCase();
+    let type = 'default';
+    if (cat.includes('material')) type = 'material';
+    else if (cat.includes('labor') || cat.includes('wage') || cat.includes('manpower')) type = 'labor';
+    else if (cat.includes('equipment') || cat.includes('tool')) type = 'equipment';
+    else if (cat.includes('permit') || cat.includes('approval')) return 1.0; // Permits usually fixed
+    else if (cat.includes('contingency')) return 1.0; // Contingency logic handled separately usually
+
+    const m = categoryMultipliers[type as keyof typeof categoryMultipliers];
+    // ratio = New / Old
+    return m[targetQuality] / m[baseQuality];
+  };
+
+  // Calculate new breakdown
+  const newBreakdown = base.breakdown.map(item => {
+    const ratio = getCategoryRatio(item.category);
+    return {
+      ...item,
+      cost: Math.round(item.cost * ratio),
+      description: item.description.replace(new RegExp(baseQuality, 'g'), targetQuality)
+        .replace(new RegExp(baseQuality.toLowerCase(), 'g'), targetQuality.toLowerCase())
+    };
+  });
+
+  const newTotal = newBreakdown.reduce((sum, item) => sum + item.cost, 0);
+
+  // Scale cashflow to match new total
+  const totalRatio = base.totalEstimatedCost > 0 ? newTotal / base.totalEstimatedCost : 1;
+
+  const newCashflow = base.cashflow.map(c => ({
+    ...c,
+    amount: Math.round(c.amount * totalRatio)
+  }));
+
+  return {
+    ...base,
+    totalEstimatedCost: newTotal,
+    breakdown: newBreakdown,
+    cashflow: newCashflow,
+    summary: base.summary.replace(new RegExp(baseQuality, 'g'), targetQuality)
+      .replace(new RegExp(baseQuality.toLowerCase(), 'g'), targetQuality.toLowerCase()),
+    confidenceReason: `Derived from ${baseQuality} (${base.confidenceScore}%) for comparison`
+  };
+};
+
+/* 
+// Deprecated helpers removed in favor of deriveScenarioFromBase for consistency
+// const deriveScenario = ...
+// const deriveStandardFromOther = ... 
+*/
 
 // Hardcoded fallback for scenario comparison
 const generateHardcodedScenarios = (
@@ -406,7 +497,7 @@ export const generatePDF = async (reportData: ReportData): Promise<void> => {
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
     doc.text(exportedData.subtitle, 105, y, { align: 'center' });
-    
+
     doc.setFontSize(8);
     doc.setTextColor(150);
     doc.text(`Generated on: ${new Date(exportedData.generatedAt).toLocaleString()}`, 105, y, { align: 'center' });
@@ -486,7 +577,7 @@ export const generatePDF = async (reportData: ReportData): Promise<void> => {
     doc.setFontSize(10);
 
     // 5. Cashflow (Table)
-    if(y > 250) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 20; }
     drawHeader('Projected Monthly Cashflow');
     tableY = y;
     doc.setFont('helvetica', 'bold');
@@ -510,7 +601,7 @@ export const generatePDF = async (reportData: ReportData): Promise<void> => {
     doc.setFontSize(10);
 
     // 6. Risk Analysis
-    if(y > 250) { doc.addPage(); y = 20; }
+    if (y > 250) { doc.addPage(); y = 20; }
     drawHeader('Risk Analysis');
     exportedData.risks.forEach((risk: any) => {
       if (y > 260) { doc.addPage(); y = 20; }
@@ -527,7 +618,7 @@ export const generatePDF = async (reportData: ReportData): Promise<void> => {
     });
 
     // 7. Efficiency Tips
-    if(y > 240) { doc.addPage(); y = 20; }
+    if (y > 240) { doc.addPage(); y = 20; }
     drawHeader('Efficiency Tips');
     exportedData.efficiencyTips.forEach((tip: string) => {
       if (y > 270) { doc.addPage(); y = 20; }

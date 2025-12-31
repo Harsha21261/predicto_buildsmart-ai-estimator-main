@@ -33,7 +33,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
   const breakdown = currentEstimation.breakdown || [];
   const cashflow = currentEstimation.cashflow || [];
   const tips = currentEstimation.efficiencyTips || [];
-  
+
   const estimatedCost = currentEstimation.totalEstimatedCost || 0;
   const budgetLimit = userBudget || 0;
   const currency = currentEstimation.currencySymbol || '$';
@@ -63,7 +63,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
     if (!scenarioComparison) {
       setIsLoadingScenarios(true);
       try {
-        const comparison = await generateScenarioComparison(projectInputs);
+        const comparison = await generateScenarioComparison(projectInputs, currentEstimation);
         setScenarioComparison(comparison);
       } catch (error) {
         console.error('Scenario comparison failed:', error);
@@ -102,10 +102,10 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
       bg: score > 75 ? 'bg-green-500' : score > 50 ? 'bg-yellow-500' : 'bg-red-500'
     };
   }, [currentEstimation.confidenceScore]);
-  
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      
+
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4 justify-end">
         <button
@@ -116,7 +116,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
           <Download className="w-4 h-4" />
           {isExporting ? 'Exporting...' : 'Export Report'}
         </button>
-        
+
         <button
           onClick={handleShowScenarioComparison}
           disabled={isLoadingScenarios}
@@ -125,23 +125,22 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
           <BarChart3 className="w-4 h-4" />
           {isLoadingScenarios ? 'Loading...' : 'Scenario Comparison'}
         </button>
-        
+
         <button
           onClick={() => setShowEditableAssumptions(!showEditableAssumptions)}
-          className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-lg transition-colors ${
-            showEditableAssumptions 
-              ? 'bg-orange-600 hover:bg-orange-700 text-white' 
+          className={`flex items-center gap-2 font-semibold px-4 py-2 rounded-lg transition-colors ${showEditableAssumptions
+              ? 'bg-orange-600 hover:bg-orange-700 text-white'
               : 'bg-orange-100 hover:bg-orange-200 text-orange-700'
-          }`}
+            }`}
         >
           <Settings className="w-4 h-4" />
           Edit Assumptions
         </button>
       </div>
-      
+
       {/* --- Top Stats Section: Clean & Explicit --- */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
+
         {/* Card 1: Estimated Cost (The Answer) */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col justify-between relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -154,8 +153,8 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
             </h2>
           </div>
           <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2 rounded w-fit">
-             <MapPin className="w-3 h-3" />
-             <span>Based on {location} rates</span>
+            <MapPin className="w-3 h-3" />
+            <span>Based on {location} rates</span>
           </div>
         </div>
 
@@ -163,23 +162,23 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
         <div className={`p-6 rounded-xl shadow-sm border flex flex-col justify-between ${budgetAnalysis.isWithinBudget ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
           <div>
             <div className="flex justify-between items-start">
-               <p className={`text-xs font-bold uppercase tracking-wider ${budgetAnalysis.isWithinBudget ? 'text-green-700' : 'text-red-700'}`}>
-                 {budgetAnalysis.isWithinBudget ? 'Budget Surplus' : 'Budget Deficit'}
-               </p>
-               {budgetAnalysis.isWithinBudget 
-                 ? <div className="bg-green-100 p-1.5 rounded-full"><TrendingUp className="w-4 h-4 text-green-700" /></div>
-                 : <div className="bg-red-100 p-1.5 rounded-full"><AlertOctagon className="w-4 h-4 text-red-700" /></div>
-               }
+              <p className={`text-xs font-bold uppercase tracking-wider ${budgetAnalysis.isWithinBudget ? 'text-green-700' : 'text-red-700'}`}>
+                {budgetAnalysis.isWithinBudget ? 'Budget Surplus' : 'Budget Deficit'}
+              </p>
+              {budgetAnalysis.isWithinBudget
+                ? <div className="bg-green-100 p-1.5 rounded-full"><TrendingUp className="w-4 h-4 text-green-700" /></div>
+                : <div className="bg-red-100 p-1.5 rounded-full"><AlertOctagon className="w-4 h-4 text-red-700" /></div>
+              }
             </div>
             <h2 className={`text-3xl font-extrabold mt-2 ${budgetAnalysis.isWithinBudget ? 'text-green-800' : 'text-red-800'}`}>
               {budgetAnalysis.isWithinBudget ? '+' : '-'}{currency} {Math.abs(budgetAnalysis.budgetDiff).toLocaleString()}
             </h2>
           </div>
-          
+
           {/* Explicit comparison line to resolve "messy" confusion */}
           <div className="mt-4 pt-3 border-t border-black/5 flex justify-between items-center text-sm">
-             <span className="text-slate-600 font-medium opacity-80">Your Limit:</span>
-             <span className="font-bold text-slate-900">{currency} {budgetLimit.toLocaleString()}</span>
+            <span className="text-slate-600 font-medium opacity-80">Your Limit:</span>
+            <span className="font-bold text-slate-900">{currency} {budgetLimit.toLocaleString()}</span>
           </div>
         </div>
 
@@ -195,13 +194,13 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
             </div>
           </div>
           <div className="mt-4">
-             <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-               <div 
-                 className={`h-full transition-all duration-1000 ${confidenceColorClasses.bg}`} 
-                 style={{ width: `${currentEstimation.confidenceScore || 0}%` }}
-               />
-             </div>
-             <p className="text-xs text-slate-400 mt-2 truncate" title={currentEstimation.confidenceReason || 'No reason provided'}>{currentEstimation.confidenceReason || 'No reason provided'}</p>
+            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full transition-all duration-1000 ${confidenceColorClasses.bg}`}
+                style={{ width: `${currentEstimation.confidenceScore || 0}%` }}
+              />
+            </div>
+            <p className="text-xs text-slate-400 mt-2 truncate" title={currentEstimation.confidenceReason || 'No reason provided'}>{currentEstimation.confidenceReason || 'No reason provided'}</p>
           </div>
         </div>
 
@@ -217,16 +216,16 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
 
       {/* --- Charts Section --- */}
       <div className="space-y-8">
-        
+
         {/* Cost Breakdown */}
         <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-bold text-slate-800 flex items-center gap-3">
-               <div className="w-1 h-7 bg-blue-500 rounded-full"></div>
-               Cost Breakdown
+              <div className="w-1 h-7 bg-blue-500 rounded-full"></div>
+              Cost Breakdown
             </h3>
           </div>
-          
+
           {breakdown.length > 0 ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <div className="h-80">
@@ -245,9 +244,9 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <RechartsTooltip 
+                    <RechartsTooltip
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 8px 25px -5px rgb(0 0 0 / 0.1)' }}
-                      formatter={(value: number) => [`${currency} ${value.toLocaleString()}`, 'Cost']} 
+                      formatter={(value: number) => [`${currency} ${value.toLocaleString()}`, 'Cost']}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -257,8 +256,8 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
                   <div key={index} className="p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors group border border-slate-100">
                     <div className="flex items-start justify-between mb-2">
                       <div className="flex items-center gap-3">
-                        <div 
-                          className="w-4 h-4 rounded-full shrink-0" 
+                        <div
+                          className="w-4 h-4 rounded-full shrink-0"
                           style={{ backgroundColor: COLORS[index % COLORS.length] }}
                         ></div>
                         <span className="font-semibold text-slate-800 group-hover:text-slate-900">{item.category}</span>
@@ -300,22 +299,22 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashflow} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="month" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{fill: '#64748b', fontSize: 12}}
-                    dy={10}
-                    label={{ value: 'Month', position: 'insideBottom', offset: -5, fill: '#94a3b8', fontSize: 10 }} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
                     tickLine={false}
-                    tick={{fill: '#64748b', fontSize: 12}}
-                    tickFormatter={(val) => `${val/1000}k`} 
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    dy={10}
+                    label={{ value: 'Month', position: 'insideBottom', offset: -5, fill: '#94a3b8', fontSize: 10 }}
                   />
-                  <RechartsTooltip 
-                    cursor={{fill: '#f1f5f9'}}
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#64748b', fontSize: 12 }}
+                    tickFormatter={(val) => `${val / 1000}k`}
+                  />
+                  <RechartsTooltip
+                    cursor={{ fill: '#f1f5f9' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(value: number) => [`${currency} ${value.toLocaleString()}`, 'Amount']}
                   />
@@ -342,10 +341,9 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
               <div key={i} className="p-4 bg-slate-50 rounded-lg border border-slate-100 hover:border-slate-200 transition-colors">
                 <div className="flex justify-between items-start mb-2">
                   <span className="font-semibold text-slate-900">{risk.risk}</span>
-                  <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${
-                    risk.impact === ImpactLevel.HIGH ? 'bg-red-100 text-red-700' : 
-                    risk.impact === ImpactLevel.MEDIUM ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
-                  }`}>
+                  <span className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${risk.impact === ImpactLevel.HIGH ? 'bg-red-100 text-red-700' :
+                      risk.impact === ImpactLevel.MEDIUM ? 'bg-yellow-100 text-yellow-700' : 'bg-blue-100 text-blue-700'
+                    }`}>
                     {risk.impact} Impact
                   </span>
                 </div>
@@ -374,7 +372,7 @@ const ResultsDashboard: React.FC<Props> = ({ result, location, userBudget, proje
 
       {/* Editable Assumptions */}
       {showEditableAssumptions && (
-        <EditableAssumptionsPanel 
+        <EditableAssumptionsPanel
           baseEstimation={result}
           onAssumptionsChange={handleAssumptionsChange}
         />
