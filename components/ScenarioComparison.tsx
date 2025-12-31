@@ -109,7 +109,7 @@ const ScenarioComparisonTable: React.FC<Props> = ({ comparison, onSelectScenario
                   <span className="text-sm text-slate-600">Risk Level</span>
                   <span className="font-semibold text-slate-800">
                     {scenario.data.risks.filter(r => r.impact === 'High').length > 0 ? 'High' :
-                     scenario.data.risks.filter(r => r.impact === 'Medium').length > 0 ? 'Medium' : 'Low'}
+                      scenario.data.risks.filter(r => r.impact === 'Medium').length > 0 ? 'Medium' : 'Low'}
                   </span>
                 </div>
               </div>
