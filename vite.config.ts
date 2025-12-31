@@ -19,13 +19,7 @@ export default defineConfig({
     // Enable source maps for debugging
     sourcemap: true,
     // Optimize for production
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true
-      }
-    }
+    minify: 'terser'
   },
   server: {
     // Improve dev server performance

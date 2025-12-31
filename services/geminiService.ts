@@ -328,6 +328,8 @@ CRITICAL INSTRUCTIONS:
 8. Ensure ${inputs.manpower} workers can complete project in ${inputs.timelineMonths} months
 9. For Premium quality (Elite Build), ensure the total cost is significantly higher (at least 20-30% more) than Standard quality due to premium materials, expert labor, high-end finishes, and superior quality standards
 10. For Economy quality (Essential Build), ensure the total cost is lower (at least 20-30% less) than Standard quality due to basic materials and standard labor
+11. CRITICAL: The project has ${inputs.floors} floor(s) - you MUST calculate costs for ALL ${inputs.floors} floor(s). Each additional floor increases structural costs, labor, materials, and equipment needs. Ensure your breakdown reflects multi-floor construction costs.
+12. CRITICAL: Use ALL provided inputs (Size: ${inputs.sizeSqFt} sq ft, Floors: ${inputs.floors}, Timeline: ${inputs.timelineMonths} months, Manpower: ${inputs.manpower}, Budget: ${inputs.budgetLimit}) in your cost calculations. Each input directly impacts the final estimate.
 
 DO NOT use generic rates - research and provide location-specific accurate pricing for ${inputs.location}.
 
@@ -336,10 +338,10 @@ Return this exact JSON structure:
   "currencySymbol": "[Local currency for ${inputs.location}]",
   "totalEstimatedCost": [Research-based total cost for ${inputs.location}],
   "breakdown": [
-    {"category": "Materials & Supplies", "cost": [${inputs.location} material costs], "description": "${inputs.quality} quality materials sourced in ${inputs.location}"},
-    {"category": "Labor & Wages", "cost": [${inputs.location} labor rates for ${inputs.manpower} workers], "description": "Local labor costs in ${inputs.location}"},
-    {"category": "Equipment & Tools", "cost": [${inputs.location} equipment costs], "description": "Equipment rental/purchase in ${inputs.location}"},
-    {"category": "Permits & Approvals", "cost": [${inputs.location} permit costs], "description": "${inputs.location} regulatory and permit fees"},
+    {"category": "Materials & Supplies", "cost": [${inputs.location} material costs for ${inputs.sizeSqFt} sq ft across ${inputs.floors} floor(s)], "description": "${inputs.quality} quality materials for ${inputs.floors}-floor construction in ${inputs.location}"},
+    {"category": "Labor & Wages", "cost": [${inputs.location} labor rates for ${inputs.manpower} workers over ${inputs.timelineMonths} months], "description": "${inputs.manpower} workers for ${inputs.timelineMonths} months in ${inputs.location}"},
+    {"category": "Equipment & Tools", "cost": [${inputs.location} equipment costs for ${inputs.floors} floors], "description": "Equipment for ${inputs.floors}-floor construction in ${inputs.location}"},
+    {"category": "Permits & Approvals", "cost": [${inputs.location} permit costs for ${inputs.floors} floors], "description": "${inputs.location} permits for ${inputs.floors}-floor ${inputs.type} building"},
     {"category": "Contingency Buffer", "cost": [Risk buffer for ${inputs.location}], "description": "Market risk buffer for ${inputs.location}"}
   ],
   "cashflow": [
@@ -353,9 +355,10 @@ Return this exact JSON structure:
   "confidenceScore": [60-95 based on ${inputs.location} data availability],
   "confidenceReason": "[Explain data sources and confidence for ${inputs.location}]",
   "efficiencyTips": [
-    "[${inputs.location} specific efficiency tip]",
+    "[${inputs.location} specific efficiency tip for ${inputs.floors}-floor construction]",
     "[${inputs.quality} quality optimization for ${inputs.location}]",
-    "[${inputs.manpower} workers optimization in ${inputs.location}]"
+    "[${inputs.manpower} workers optimization in ${inputs.location} for ${inputs.timelineMonths} months]",
+    "[Cost optimization for ${inputs.sizeSqFt} sq ft across ${inputs.floors} floors]"
   ],
   "summary": "[Project summary with ${inputs.location} market insights]"
 }`;

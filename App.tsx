@@ -23,6 +23,7 @@ const App: React.FC = () => {
     quality: QualityLevel.STANDARD,
     location: '',
     sizeSqFt: 1000,
+    floors: 1,
     budgetLimit: 3500000, // Default to 35 Lakhs
     timelineMonths: 6,
     manpower: 5
